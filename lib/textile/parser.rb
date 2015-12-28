@@ -17,7 +17,7 @@ module Textile
       ast.join('')
     end
 
-    TRIVIAL_OPERATORS = [:asterisk, :caret, :plus, :underscore, :at, :tilde, :pre].freeze
+    TRIVIAL_OPERATORS = [:asterisk, :caret, :plus, :underscore, :at, :tilde, :terminal].freeze
 
     # Ignores the last one so that we can define it manually
     6.times do |i|
@@ -27,12 +27,8 @@ module Textile
       class_eval <<-RUBY, __FILE__, __LINE__ + 1
         def #{this_sym}
           if accept(:#{this_sym})
-            op = @last.string
-            prox = #{next_sym}
-            if accept(:#{this_sym})
-              OperatorNode.new(:#{this_sym}, prox)
-            else
-              BinaryTextNode.new(TermNode.new(op), prox)
+            backtrack(:#{next_sym}, :#{next_sym}) do |n|
+              OperatorNode.new(:#{this_sym}, n)
             end
           else
             #{next_sym}
@@ -41,23 +37,22 @@ module Textile
       RUBY
     end
 
-    def pre
-      if accept(:pre_start)
-        node = OperatorNode.new(:pre, terminal)
-        expect(:pre_end)
-        node
-      else
-        terminal
-      end
-    end
-
     def terminal
       if accept(:word) || accept(:space)
         buffer = @last.string
         buffer << @last.string while accept(:word) || accept(:space)
         TermNode.new(buffer)
+      elsif accept(:pre_start)
+        backtrack(:pre_end, :asterisk) do |n|
+          OperatorNode.new(:pre, n)
+        end
+      elsif accept(:spoiler_start)
+        backtrack(:spoiler_end, :asterisk) do |n|
+          SpoilerNode.new(n)
+        end
       else
-        asterisk
+        # No more parser rules match this
+        TermNode.new(@current.string)
       end
     end
 
@@ -71,8 +66,14 @@ module Textile
       advance || true
     end
 
-    def expect(type)
-      accept(type) || fail "Expected #{type.inspect}, got #{@current.inspect}"
+    def backtrack(next_token, next_node)
+      op = @last.string
+      prox = send(next_node)
+      if accept(next_token)
+        yield prox
+      else
+        BinaryTextNode.new(TermNode.new(op), prox)
+      end
     end
   end
 end

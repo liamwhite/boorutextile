@@ -35,13 +35,6 @@ module Textile
     end
   end
 
-  # <pre>
-  class PreNode < Struct.new(:child)
-    def build
-      %{<pre>#{child.build}</pre>}
-    end
-  end
-
   # <img>
   class ImageNode < Struct.new(:target)
     def build
