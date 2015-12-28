@@ -68,7 +68,7 @@ module Textile
       %{"#{child.build}"}
     end
   end
-  
+
   class BinaryTextNode < Struct.new(:left, :right)
     def build
       %{#{left.build}#{right.build}}

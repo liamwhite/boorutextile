@@ -21,23 +21,26 @@ module Textile
 
     # Ignores the last one so that we can define it manually
     6.times do |i|
+      this_sym = TRIVIAL_OPERATORS[i]
+      next_sym = TRIVIAL_OPERATORS[i+1]
+
       class_eval <<-RUBY, __FILE__, __LINE__ + 1
-        def #{TRIVIAL_OPERATORS[i]}
-          if accept(:#{TRIVIAL_OPERATORS[i]})
+        def #{this_sym}
+          if accept(:#{this_sym})
             op = @last.string
-            prox = #{TRIVIAL_OPERATORS[i+1]}
-            if accept(:#{TRIVIAL_OPERATORS[i]})
-              OperatorNode.new(:#{TRIVIAL_OPERATORS[i]}, prox)
+            prox = #{next_sym}
+            if accept(:#{this_sym})
+              OperatorNode.new(:#{this_sym}, prox)
             else
               BinaryTextNode.new(TermNode.new(op), prox)
             end
           else
-            #{TRIVIAL_OPERATORS[i+1]}
+            #{next_sym}
           end
         end
       RUBY
     end
-    
+
     def pre
       if accept(:pre_start)
         node = OperatorNode.new(:pre, terminal)
@@ -51,11 +54,7 @@ module Textile
     def terminal
       if accept(:word) || accept(:space)
         buffer = @last.string
-        
-        while accept(:word) || accept(:space)
-          buffer << @last.string
-        end
-        
+        buffer << @last.string while accept(:word) || accept(:space)
         TermNode.new(buffer)
       else
         asterisk
@@ -66,14 +65,14 @@ module Textile
       @last = @current
       @current = @tokens.shift
     end
-    
+
     def accept(type)
-      return false unless @current and @current.type == type
+      return false unless @current && @current.type == type
       advance || true
     end
-    
+
     def expect(type)
-      accept(type) or fail "Expected #{type.inspect}, got #{@current.inspect}"
+      accept(type) || fail "Expected #{type.inspect}, got #{@current.inspect}"
     end
   end
 end
