@@ -1,1 +1,62 @@
 [WIP] Recursive-descent Textile parser in Ruby
+
+bold-rule:
+  | '*' superscript-rule '*'
+  : superscript-rule
+  ;
+
+superscript-rule:
+  | '^' underline-rule '^'
+  : underline-rule
+  ;
+
+underline-rule:
+  | '+' strike-rule '^'
+  : strike-rule
+  ;
+
+strike-rule:
+  | '-' italic-rule '-'
+  : italic-rule
+  ;
+
+italic-rule:
+  | '_' code-rule '_'
+  : code-rule
+  ;
+
+code-rule:
+  | '@' sub-rule '@'
+  : sub-rule
+  ;
+
+sub-rule:
+  | '~' image-rule '~'
+  : image-rule
+  ;
+
+image-rule:
+  | '!' quote-rule '!', (':' link-rule)
+  : quote-rule
+  ;
+
+quote-rule:
+  | '"' terminal '"', (':' link-rule)
+  : terminal
+  ;
+
+terminal:
+  word | space | pre-rule | spoiler-rule | raw-rule
+  ;
+
+spoiler-rule:
+  | '[spoiler]' bold-rule '[/spoiler]'
+  ;
+
+pre-rule:
+  | '[pre]' bold-rule '[/pre]'
+  ;
+
+raw-rule:
+  | '[==' terminal '==]'
+  ;
