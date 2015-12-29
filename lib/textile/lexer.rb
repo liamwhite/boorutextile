@@ -20,6 +20,7 @@ module Textile
       :underscore => /_/,
       :at         => /@/,
       :tilde      => /~/,
+      :dblequal   => /==/,
 
       # Link operators
       :exclamation => /!/,
@@ -57,7 +58,9 @@ module Textile
       best_match = nil
       RX_TOKEN_LIST.each do |rule|
         result = rule[1].match(input)
-        best_match = [rule[0], input] if result
+        if result && (!best_match || best_match[0].size < result.size)
+          best_match = [rule[0], input]
+        end
       end
 
       LexerToken.new(*(best_match || [:word, input]))

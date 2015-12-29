@@ -24,6 +24,7 @@ module Textile
       this_sym = TRIVIAL_OPERATORS[i]
       next_sym = TRIVIAL_OPERATORS[i+1]
 
+      # bold-rule etc.
       class_eval <<-RUBY, __FILE__, __LINE__ + 1
         def #{this_sym}
           if accept(:#{this_sym})
@@ -37,6 +38,10 @@ module Textile
       RUBY
     end
 
+    # link-rule:
+    #   | image ':' url
+    #   | quote ':' url
+    #   : quote
     def colon
       prox = quote
       if accept(:colon) && (prox.is_a?(QuoteNode) || prox.is_a?(ImageNode))
@@ -50,6 +55,9 @@ module Textile
       end
     end
 
+    # quote-rule:
+    #   | '"' image '"'
+    #   : image
     def quote
       if accept(:quote)
         backtrack(:quote, :image) do |n|
@@ -60,12 +68,17 @@ module Textile
       end
     end
 
+    # image-rule:
+    #   | '!' url '!'
+    #   : terminal
     def image
       if accept(:exclamation)
-        if accept(:url) && accept(:exclamation)
-          ImageNode.new(@last.string)
+        if accept(:url)
+          url = @last.string
+          return ImageNode.new(url) if accept(:exclamation)
+          PolyTextNode.new('!', url, terminal)
         else
-          PolyTextNode.new('!')
+          PolyTextNode.new('!', terminal)
         end
       else
         terminal
@@ -85,6 +98,10 @@ module Textile
         backtrack(:spoiler_end, :asterisk) do |n|
           SpoilerNode.new(n)
         end
+      elsif accept(:raw_start)
+        TermNode.new(concat_until(:raw_end) || '[==')
+      elsif accept(:dblequal)
+        TermNode.new(concat_until(:dblequal) || '==')
       elsif @tokens.empty?
         TermNode.new('')
       else
@@ -104,6 +121,10 @@ module Textile
       advance || true
     end
 
+    # Textile cannot use predictive parsing, because markup isn't context-free.
+    # Finds if this operator has a matching pair (+next_token+) in @tokens, and
+    # yields the current parse tree if it does; otherwise, returns the operator
+    # string as a term node including the rest of the parse tree (+next_node+).
     def backtrack(next_token, next_node)
       op = @last.string
       current = PolyTextNode.new
@@ -117,6 +138,21 @@ module Textile
           return PolyTextNode.new(TermNode.new(op), current)
         end
       end
+    end
+
+    # Helper for implementing == and [==
+    # Checks to see if the matching token exists, and then eats strings
+    # until the token is found
+    def concat_until(token)
+      return unless @tokens.index{|op| op.type == token }
+      buffer = ""
+
+      until accept(token)
+        advance
+        buffer << @last.string
+      end
+
+      buffer
     end
   end
 end
