@@ -17,10 +17,10 @@ module Textile
       ast.join('')
     end
 
-    TRIVIAL_OPERATORS = [:asterisk, :caret, :plus, :underscore, :at, :tilde, :terminal].freeze
+    TRIVIAL_OPERATORS = [:asterisk, :caret, :plus, :minus, :underscore, :at, :tilde, :colon].freeze
 
     # Ignores the last one so that we can define it manually
-    6.times do |i|
+    7.times do |i|
       this_sym = TRIVIAL_OPERATORS[i]
       next_sym = TRIVIAL_OPERATORS[i+1]
 
@@ -37,6 +37,41 @@ module Textile
       RUBY
     end
 
+    def colon
+      prox = quote
+      if accept(:colon) && (prox.is_a?(QuoteNode) || prox.is_a?(ImageNode))
+        if accept(:url)
+          LinkNode.new(@last.string, prox)
+        else
+          PolyTextNode.new(@last.string, prox)
+        end
+      else
+        prox
+      end
+    end
+
+    def quote
+      if accept(:quote)
+        backtrack(:quote, :image) do |n|
+          QuoteNode.new(n)
+        end
+      else
+        image
+      end
+    end
+
+    def image
+      if accept(:exclamation)
+        if accept(:url) && accept(:exclamation)
+          ImageNode.new(@last.string)
+        else
+          PolyTextNode.new('!')
+        end
+      else
+        terminal
+      end
+    end
+
     def terminal
       if accept(:word) || accept(:space)
         buffer = @last.string
@@ -50,7 +85,7 @@ module Textile
         backtrack(:spoiler_end, :asterisk) do |n|
           SpoilerNode.new(n)
         end
-      elsif accept(:eof) || @tokens.empty?
+      elsif @tokens.empty?
         TermNode.new('')
       else
         # No more parser rules match this
@@ -78,7 +113,7 @@ module Textile
         current.children << prox
         if accept(next_token)
           return yield current
-        elsif accept(:eof) || @tokens.empty?
+        elsif @tokens.empty?
           return PolyTextNode.new(TermNode.new(op), current)
         end
       end

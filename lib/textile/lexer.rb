@@ -16,6 +16,7 @@ module Textile
       :asterisk   => /\*/,
       :caret      => /\^/,
       :plus       => /\+/,
+      :minus      => /-/,
       :underscore => /_/,
       :at         => /@/,
       :tilde      => /~/,
@@ -47,7 +48,6 @@ module Textile
         tokens << match_token(token)
       end
 
-      tokens << LexerToken.new(:eof, '$')
       tokens.compact
     end
 

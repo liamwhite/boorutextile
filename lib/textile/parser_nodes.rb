@@ -13,6 +13,7 @@ module Textile
       :asterisk   => 'b',
       :caret      => 'sup',
       :plus       => 'ins',
+      :minus      => 'del',
       :underscore => 'em',
       :at         => 'code',
       :tilde      => 'sub',
