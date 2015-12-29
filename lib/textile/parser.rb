@@ -13,7 +13,7 @@ module Textile
     def parse
       advance
       ast = []
-      ast << asterisk.build until accept(:eof)
+      ast << asterisk.build until @tokens.empty?
       ast.join('')
     end
 
@@ -27,7 +27,7 @@ module Textile
       class_eval <<-RUBY, __FILE__, __LINE__ + 1
         def #{this_sym}
           if accept(:#{this_sym})
-            backtrack(:#{next_sym}, :#{next_sym}) do |n|
+            backtrack(:#{this_sym}, :#{next_sym}) do |n|
               OperatorNode.new(:#{this_sym}, n)
             end
           else
@@ -50,9 +50,12 @@ module Textile
         backtrack(:spoiler_end, :asterisk) do |n|
           SpoilerNode.new(n)
         end
+      elsif accept(:eof) || @tokens.empty?
+        TermNode.new('')
       else
         # No more parser rules match this
-        TermNode.new(@current.string)
+        advance
+        TermNode.new(@last.string)
       end
     end
 
@@ -68,11 +71,16 @@ module Textile
 
     def backtrack(next_token, next_node)
       op = @last.string
-      prox = send(next_node)
-      if accept(next_token)
-        yield prox
-      else
-        BinaryTextNode.new(TermNode.new(op), prox)
+      current = PolyTextNode.new
+
+      loop do
+        prox = send(next_node)
+        current.children << prox
+        if accept(next_token)
+          return yield current
+        elsif accept(:eof) || @tokens.empty?
+          return PolyTextNode.new(TermNode.new(op), current)
+        end
       end
     end
   end

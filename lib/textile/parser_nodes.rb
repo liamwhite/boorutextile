@@ -62,9 +62,15 @@ module Textile
     end
   end
 
-  class BinaryTextNode < Struct.new(:left, :right)
+  class PolyTextNode
+    attr_accessor :children
+
+    def initialize(*args)
+      @children = args
+    end
+
     def build
-      %{#{left.build}#{right.build}}
+      [*children].map(&:build).join('')
     end
   end
 end
