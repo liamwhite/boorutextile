@@ -3,6 +3,7 @@ require 'textile/lexer'
 
 module Textile
   def self.parse(text)
-    Parser.new(Lexer.lex(text)).parsed
+    tokens = Lexer.new(text).lex
+    Parser.new(tokens).parsed
   end
 end

@@ -11,6 +11,13 @@ module Textile
       :paragraph => /\n\n/,
       :space => /[#{RX_SPACE_CHARS}]/,
 
+      # Oh shit.
+      :url => %r{
+                (?:http:\/\/|https:\/\/|\/\/|\/|\#)         # protocol
+                (?:[^%#{RX_SPACE_CHARS}"]|%[0-9a-fA-F]{2})+ # path
+                [^#{RX_SPACE_CHARS}`~!@$^&\*_+\-=\[\]\\|;:,.'?\#)] # invalid
+              }x,
+
       # Context-sensitive operators that require a matching pair to
       # be considered an operator
       :asterisk   => /\*/,
@@ -39,31 +46,59 @@ module Textile
       :raw_end       => /==\]/,
     }.freeze
 
-    RX_TOKEN_LIST = RX_TOKENS.keys.zip(RX_TOKENS.values).freeze
-    RX_MATCHABLE = /(#{RX_TOKENS.values.map(&:to_s).join('|')})/.freeze
+    # By first matching against a union of all possible tokens, we can find
+    # the first match possible *and* match the longest token possible.
+    RX_MATCHABLE = Regexp.union(RX_TOKENS.values).freeze
 
-    # Convert input to token stream
-    def self.lex(input)
-      tokens = []
-      input.split(RX_MATCHABLE).each do |token|
-        tokens << match_token(token)
-      end
-
-      tokens.compact
+    def initialize(input)
+      @input = input.dup
+      @tokens = []
     end
 
-    def self.match_token(input)
-      return if input.empty?
+    # Consume @input and convert it into tokens.
+    def lex
+      until @input.empty?
+        md = RX_MATCHABLE.match(@input)
 
-      best_match = nil
-      RX_TOKEN_LIST.each do |rule|
-        result = rule[1].match(input)
-        if result && (!best_match || best_match[0].size < result.size)
-          best_match = [rule[0], input]
+        if md
+          # Slice off the portion before the match
+          pre = @input.slice!(0, md.pre_match.size)
+          @tokens << LexerToken.new(:word, pre) unless pre.empty?
+
+          # Now add the main match group
+          @tokens << match_token
+        else
+          # Nothing to do here.
+          @tokens << LexerToken.new(:word, @input)
+          @input = ''
         end
       end
 
-      LexerToken.new(*(best_match || [:word, input]))
+      @tokens
+    end
+
+    private
+
+    def match_token
+      best_match = nil
+
+      RX_TOKENS.each do |type, regex|
+        result = regex.match(@input)
+
+        # Make sure that the match starts at the first character.
+        if result && result.pre_match.empty?
+          string = result.to_s
+
+          # No match? Add it. Better match? Add it.
+          if !best_match || best_match[1].size < string.size
+            best_match = [type, string]
+          end
+        end
+      end
+
+      type, string = best_match
+      @input.slice!(0, string.size)
+      LexerToken.new(type, string)
     end
   end
 end
