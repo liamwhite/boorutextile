@@ -13,9 +13,9 @@ module Textile
 
       # Oh shit.
       :url => %r{
-                (?:http:\/\/|https:\/\/|\/\/|\/|\#)         # protocol
-                (?:[^%#{RX_SPACE_CHARS}"]|%[0-9a-fA-F]{2})+ # path
-                [^#{RX_SPACE_CHARS}`~!@$^&\*_+\-=\[\]\\|;:,.'?\#)] # invalid
+                (?:http:\/\/|https:\/\/|\/\/|\/|\#)          # protocol
+                (?:[^%#{RX_SPACE_CHARS}"!]|%[0-9a-fA-F]{2})+ # path
+                [^#{RX_SPACE_CHARS}`~!@$^&"\*_+\-=\[\]\\|;:,.'?\#)] # invalid
               }x,
 
       # Context-sensitive operators that require a matching pair to
@@ -74,7 +74,7 @@ module Textile
         end
       end
 
-      @tokens
+      @tokens << LexerToken.new(:eof, '$')
     end
 
     private

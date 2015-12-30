@@ -1,14 +1,18 @@
 # Parser nodes for the Textile parser.
 module Textile
+  def self.html_escape(term)
+    term.gsub(/[\n\r&<>]/, "\n" => '<br/>', "\r" => '', '&' => '&amp;', '<' => '&lt;', '>' => '&gt;')
+  end
+
   # Raw text to be output for HTML escaping
-  class TermNode < Struct.new(:term)
+  TermNode = Struct.new(:term) do
     def build
-      term.gsub(/[\n\r&<>]/, "\n" => '<br/>', "\r" => '', '&' => '&amp;', '<' => '&lt;', '>' => '&gt;')
+      Textile.html_escape(term)
     end
   end
 
   # Operators in the form of <op>[...]</op>
-  class OperatorNode < Struct.new(:operator, :child)
+  OperatorNode = Struct.new(:operator, :child) do
     OPERATOR_TO_HTML = {
       :asterisk   => 'b',
       :caret      => 'sup',
@@ -30,39 +34,52 @@ module Textile
   end
 
   # <span class="spoiler">
-  class SpoilerNode < Struct.new(:child)
+  SpoilerNode = Struct.new(:child) do
     def build
       %{<span class="spoiler">#{child.build}</span>}
     end
   end
 
+  # <a>
+  LinkNode = Struct.new(:target, :child) do
+    def build
+      %{<a href="#{Textile.html_escape(target)}">#{child.build}</a>}
+    end
+  end
+
   # <img>
-  class ImageNode < Struct.new(:target)
-    def build
-      %{<img src="#{target}"/>} #TODO HTML-escape target
-    end
-  end
+  ImageNode = Struct.new(:target) do
+    def for_link; self end
 
-  # <a href="">
-  class LinkNode < Struct.new(:target, :child)
     def build
-      %{<a href="#{target}">#{child.build}</a>}
-    end
-  end
-
-  class BlockquoteNode < Struct.new(:child, :author)
-    def build
-      %{<blockquote author="#{author}">#{child.build}</blockquote>}
+      %{<img src="#{Textile.html_escape(target)}"/>}
     end
   end
 
   # Pseudo-node used for AST manipulation
-  class QuoteNode < Struct.new(:child)
+  QuoteNode = Struct.new(:child) do
+    def for_link; child end
+
     def build
       %{"#{child.build}"}
     end
   end
 
+  # <blockquote>
+  class BlockquoteNode
+    attr_accessor :child, :author
+
+    def initialize(child, author = '')
+      @child = child
+      @author = author
+    end
+
+    def build
+      %{<blockquote author="#{Textile.html_escape(author)}">#{child.build}</blockquote>}
+    end
+  end
+
+  # AST node with multiple children, built and joined in order
   class PolyTextNode
     attr_accessor :children
 

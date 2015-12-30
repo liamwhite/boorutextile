@@ -13,7 +13,7 @@ module Textile
     def parse
       advance
       ast = []
-      ast << asterisk.build until @tokens.empty?
+      ast << asterisk.build until accept(:eof)
       ast.join('')
     end
 
@@ -43,12 +43,14 @@ module Textile
     #   | quote ':' url
     #   : quote
     def colon
+      byebug
       prox = quote
-      if accept(:colon) && (prox.is_a?(QuoteNode) || prox.is_a?(ImageNode))
-        if accept(:url)
-          LinkNode.new(@last.string, prox)
+      if accept(:colon)
+        if prox.is_a?(QuoteNode) || prox.is_a?(ImageNode)
+          return LinkNode.new(@last.string, prox.for_link) if accept(:url)
+          PolyTextNode.new(prox, TermNode.new(':'))
         else
-          PolyTextNode.new(@last.string, prox)
+          PolyTextNode.new(prox, TermNode.new(':'))
         end
       else
         prox
@@ -76,9 +78,9 @@ module Textile
         if accept(:url)
           url = @last.string
           return ImageNode.new(url) if accept(:exclamation)
-          PolyTextNode.new('!', url, terminal)
+          PolyTextNode.new(TermNode.new('!'), TermNode.new(url), terminal)
         else
-          PolyTextNode.new('!', terminal)
+          PolyTextNode.new(TermNode.new('!'), terminal)
         end
       else
         terminal
@@ -98,11 +100,15 @@ module Textile
         backtrack(:spoiler_end, :asterisk) do |n|
           SpoilerNode.new(n)
         end
+      elsif accept(:bq_start) || accept(:bq_author)
+        backtrack(:bq_end, :asterisk) do |n|
+          BlockquoteNode.new(n)
+        end
       elsif accept(:raw_start)
         TermNode.new(concat_until(:raw_end) || '[==')
       elsif accept(:dblequal)
         TermNode.new(concat_until(:dblequal) || '==')
-      elsif @tokens.empty?
+      elsif peek?(:eof)
         TermNode.new('')
       else
         # No more parser rules match this
@@ -117,8 +123,12 @@ module Textile
     end
 
     def accept(type)
-      return false unless @current && @current.type == type
+      return false unless peek?(type)
       advance || true
+    end
+
+    def peek?(type)
+      @current && @current.type == type
     end
 
     # Textile cannot use predictive parsing, because markup isn't context-free.
@@ -134,7 +144,7 @@ module Textile
         current.children << prox
         if accept(next_token)
           return yield current
-        elsif @tokens.empty?
+        elsif peek?(:eof)
           return PolyTextNode.new(TermNode.new(op), current)
         end
       end
