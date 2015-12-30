@@ -69,7 +69,8 @@ module Textile
 
     def build
       @src, @title = Textile.extract_title(target) if !@src
-      %{<img src="#{Textile.html_escape(@src)}" title="#{@title}"/>}
+      return %{<img src="#{Textile.html_escape(@src)}" title="#{@title}"/>} if @title
+      return %{<img src="#{Textile.html_escape(@src)}"/>}
     end
   end
 
@@ -96,7 +97,8 @@ module Textile
     end
 
     def build
-      %{<a href="#{Textile.html_escape(target)}" title="#{@title}">#{child.build}</a>}
+      return %{<a href="#{Textile.html_escape(target)}" title="#{title}">#{child.build}</a>} if title
+      return %{<a href="#{Textile.html_escape(target)}">#{child.build}</a>}
     end
   end
 
@@ -106,18 +108,19 @@ module Textile
 
     attr_accessor :child, :author
 
-    def initialize(child, author)
+    def initialize(child, cite = '')
       @child = child
-      @author = extract_author(author) || ''
+      @author = extract_author(cite)
     end
 
     def build
-      %{<blockquote author="#{author}">#{child.build}</blockquote>}
+      return %{<blockquote author="#{author}">#{child.build}</blockquote>} if author
+      return %{<blockquote>#{child.build}</blockquote>}
     end
 
-    def extract_author(author)
-      return if author.empty?
-      Textile.html_escape(RX_QUOTE_CITE.match(author)[1]
+    def extract_author(cite)
+      return if cite.empty?
+      Textile.html_escape(RX_QUOTE_CITE.match(cite)[1])
     end
   end
 
