@@ -43,11 +43,10 @@ module Textile
     #   | quote ':' url
     #   : quote
     def colon
-      byebug
       prox = quote
       if accept(:colon)
         if prox.is_a?(QuoteNode) || prox.is_a?(ImageNode)
-          return LinkNode.new(@last.string, prox.for_link) if accept(:url)
+          return prox.build_link(@last.string) if accept(:url)
           PolyTextNode.new(prox, TermNode.new(':'))
         else
           PolyTextNode.new(prox, TermNode.new(':'))
@@ -77,8 +76,16 @@ module Textile
       if accept(:exclamation)
         if accept(:url)
           url = @last.string
-          return ImageNode.new(url) if accept(:exclamation)
-          PolyTextNode.new(TermNode.new('!'), TermNode.new(url), terminal)
+
+          # NESTING OVER 9000
+          if accept(:rparen)
+            return ImageNode.new("#{url})") if accept(:exclamation)
+            return PolyTextNode.new(TermNode.new("!#{url})"), terminal)
+          elsif accept(:exclamation)
+            ImageNode.new(url)
+          else
+            PolyTextNode.new(TermNode.new("!#{url}"), terminal)
+          end          
         else
           PolyTextNode.new(TermNode.new('!'), terminal)
         end
@@ -100,9 +107,14 @@ module Textile
         backtrack(:spoiler_end, :asterisk) do |n|
           SpoilerNode.new(n)
         end
-      elsif accept(:bq_start) || accept(:bq_author)
+      elsif accept(:bq_start)
         backtrack(:bq_end, :asterisk) do |n|
           BlockquoteNode.new(n)
+        end
+      elsif accept(:bq_author)
+        cite = @last.string
+        backtrack(:bq_end, :asterisk) do |n|
+          BlockquoteNode.new(n, cite)
         end
       elsif accept(:raw_start)
         TermNode.new(concat_until(:raw_end) || '[==')

@@ -1,13 +1,34 @@
-# Parser nodes for the Textile parser.
+# Parser nodes for the Textile parser
 module Textile
   def self.html_escape(term)
     term.gsub(/[\n\r&<>]/, "\n" => '<br/>', "\r" => '', '&' => '&amp;', '<' => '&lt;', '>' => '&gt;')
   end
 
+  RX_TITLE = /\A([^\(]+)\(([^\)]*)\)\z/.freeze
+
+  # Extracts the title attribute from an image or link.
+  #
+  #   !foo(bar)!      #=> <img src="foo" title="bar"/>
+  #   "foo(bar)":/foo #=> <a href="/foo" title="bar">foo</a>
+  #
+  def self.extract_title(string)
+    md = RX_TITLE.match(string)
+    return [md[1], md[2]] if md
+    [string, nil]
+  end
+
+
   # Raw text to be output for HTML escaping
   TermNode = Struct.new(:term) do
     def build
       Textile.html_escape(term)
+    end
+  end
+
+  # Unescaped text. BE CAREFUL.
+  TextNode = Struct.new(:text) do
+    def build
+      text
     end
   end
 
@@ -40,42 +61,63 @@ module Textile
     end
   end
 
-  # <a>
-  LinkNode = Struct.new(:target, :child) do
-    def build
-      %{<a href="#{Textile.html_escape(target)}">#{child.build}</a>}
-    end
-  end
-
   # <img>
   ImageNode = Struct.new(:target) do
-    def for_link; self end
+    def build_link(target)
+      LinkNode.new(target, self)
+    end
 
     def build
-      %{<img src="#{Textile.html_escape(target)}"/>}
+      @src, @title = Textile.extract_title(target) if !@src
+      %{<img src="#{Textile.html_escape(@src)}" title="#{@title}"/>}
     end
   end
 
   # Pseudo-node used for AST manipulation
   QuoteNode = Struct.new(:child) do
-    def for_link; child end
+    def build_link(target)
+      text, title = Textile.extract_title(child.build)
+      LinkNode.new(target, TextNode.new(text), title)
+    end
 
     def build
       %{"#{child.build}"}
     end
   end
 
-  # <blockquote>
-  class BlockquoteNode
-    attr_accessor :child, :author
+  # <a>
+  class LinkNode
+    attr_accessor :target, :child, :title
 
-    def initialize(child, author = '')
+    def initialize(target, child, title = nil)
+      @target = target
       @child = child
-      @author = author
+      @title = title
     end
 
     def build
-      %{<blockquote author="#{Textile.html_escape(author)}">#{child.build}</blockquote>}
+      %{<a href="#{Textile.html_escape(target)}" title="#{@title}">#{child.build}</a>}
+    end
+  end
+
+  # <blockquote>
+  class BlockquoteNode
+    RX_QUOTE_CITE = /\[bq="([^"]*)"\]/.freeze
+
+    attr_accessor :child, :author
+
+    def initialize(child, author)
+      @child = child
+      @author = extract_author(author) || ''
+    end
+
+    def build
+      %{<blockquote author="#{author}">#{child.build}</blockquote>}
+    end
+
+    def extract_author(author)
+      return if author.empty?
+      Textile.html_escape(RX_QUOTE_CITE.match(author)[1]
     end
   end
 

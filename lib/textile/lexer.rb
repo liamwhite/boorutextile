@@ -34,6 +34,10 @@ module Textile
       :quote       => /"/,
       :colon       => /:/,
 
+      # This is a link operator too, albeit a special one. Image URLs are
+      # allowed to contain a closing parenthesis, while quote URLs are not.
+      :rparen      => /\)/,
+
       # Block operators
       :spoiler_start => /\[spoiler\]/,
       :spoiler_end   => /\[\/spoiler\]/,
