@@ -19,9 +19,11 @@ module Textile
 
 
   # Raw text to be output for HTML escaping
-  TermNode = Struct.new(:term) do
+  TermNode = Struct.new(:term, :custom) do
     def build
-      Textile.html_escape(term)
+      text = Textile.html_escape(term)
+      text = custom.call(text) if custom
+      text
     end
   end
 

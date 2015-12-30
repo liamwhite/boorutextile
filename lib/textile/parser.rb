@@ -4,9 +4,10 @@ module Textile
   class Parser
     attr_reader :parsed
 
-    # Textile::Parser will consume lexer tokens to produce parsed, HTML-safe output.
-    def initialize(tokens)
+    # The parser accepts a proc to perform substitutions on any HTML-escaped terms.
+    def initialize(tokens, custom = nil)
       @tokens = tokens.dup
+      @custom = custom
       @parsed = parse
     end
 
@@ -47,9 +48,9 @@ module Textile
       if accept(:colon)
         if prox.is_a?(QuoteNode) || prox.is_a?(ImageNode)
           return prox.build_link(@last.string) if accept(:url)
-          PolyTextNode.new(prox, TermNode.new(':'))
+          PolyTextNode.new(prox, term_node(':'))
         else
-          PolyTextNode.new(prox, TermNode.new(':'))
+          PolyTextNode.new(prox, term_node(':'))
         end
       else
         prox
@@ -80,14 +81,14 @@ module Textile
           # NESTING OVER 9000
           if accept(:rparen)
             return ImageNode.new("#{url})") if accept(:exclamation)
-            return PolyTextNode.new(TermNode.new("!#{url})"), terminal)
+            return PolyTextNode.new(term_node("!#{url})"), terminal)
           elsif accept(:exclamation)
             ImageNode.new(url)
           else
-            PolyTextNode.new(TermNode.new("!#{url}"), terminal)
+            PolyTextNode.new(term_node("!#{url}"), terminal)
           end          
         else
-          PolyTextNode.new(TermNode.new('!'), terminal)
+          PolyTextNode.new(term_node('!'), terminal)
         end
       else
         terminal
@@ -98,7 +99,7 @@ module Textile
       if accept(:word) || accept(:space)
         buffer = @last.string
         buffer << @last.string while accept(:word) || accept(:space)
-        TermNode.new(buffer)
+        term_node(buffer)
       elsif accept(:pre_start)
         backtrack(:pre_end, :asterisk) do |n|
           OperatorNode.new(:pre, n)
@@ -117,15 +118,15 @@ module Textile
           BlockquoteNode.new(n, cite)
         end
       elsif accept(:raw_start)
-        TermNode.new(concat_until(:raw_end) || '[==')
+        term_node(concat_until(:raw_end) || '[==', true)
       elsif accept(:dblequal)
-        TermNode.new(concat_until(:dblequal) || '==')
+        term_node(concat_until(:dblequal) || '==', true)
       elsif peek?(:eof)
-        TermNode.new('')
+        term_node('')
       else
         # No more parser rules match this
         advance
-        TermNode.new(@last.string)
+        term_node(@last.string)
       end
     end
 
@@ -157,7 +158,7 @@ module Textile
         if accept(next_token)
           return yield current
         elsif peek?(:eof)
-          return PolyTextNode.new(TermNode.new(op), current)
+          return PolyTextNode.new(term_node(op), current)
         end
       end
     end
@@ -175,6 +176,14 @@ module Textile
       end
 
       buffer
+    end
+
+    def term_node(string, raw = false)
+      if raw
+        TermNode.new(string)
+      else
+        TermNode.new(string, @custom)
+      end
     end
   end
 end
