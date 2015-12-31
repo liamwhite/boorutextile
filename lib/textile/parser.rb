@@ -150,8 +150,11 @@ module Textile
     # string as a term node including the rest of the parse tree (+next_node+).
     def backtrack(next_token, next_node)
       op = @last.string
-      current = PolyTextNode.new
 
+      # for 2 adjacent ops, bail out
+      return term_node("#{op}#{@last.string}") if accept(next_token)
+
+      current = PolyTextNode.new
       loop do
         prox = send(next_node)
         current.children << prox
