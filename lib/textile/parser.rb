@@ -14,29 +14,8 @@ module Textile
     def parse
       advance
       ast = []
-      ast << asterisk.build until accept(:eof)
+      ast << colon.build until accept(:eof)
       ast.join('')
-    end
-
-    TRIVIAL_OPERATORS = [:asterisk, :caret, :plus, :underscore, :minus, :at, :tilde, :colon].freeze
-
-    # Ignores the last one so that we can define it manually
-    7.times do |i|
-      this_sym = TRIVIAL_OPERATORS[i]
-      next_sym = TRIVIAL_OPERATORS[i+1]
-
-      # bold-rule etc.
-      class_eval <<-RUBY, __FILE__, __LINE__ + 1
-        def #{this_sym}
-          if accept(:#{this_sym})
-            backtrack(:#{this_sym}, :#{next_sym}) do |n|
-              OperatorNode.new(:#{this_sym}, n)
-            end
-          else
-            #{next_sym}
-          end
-        end
-      RUBY
     end
 
     # link-rule:
@@ -100,21 +79,28 @@ module Textile
         buffer = @last.string
         buffer << @last.string while accept(:word) || accept(:space)
         term_node(buffer)
+      elsif accept(:asterisk) || accept(:caret) || accept(:plus) ||
+            accept(:underscore) || accept(:minus) || accept(:at) ||
+            accept(:tilde)
+        type = @last.type
+        backtrack(type, :colon) do |n|
+          OperatorNode.new(type, n)
+        end
       elsif accept(:pre_start)
-        backtrack(:pre_end, :asterisk) do |n|
+        backtrack(:pre_end, :colon) do |n|
           OperatorNode.new(:pre, n)
         end
       elsif accept(:spoiler_start)
-        backtrack(:spoiler_end, :asterisk) do |n|
+        backtrack(:spoiler_end, :colon) do |n|
           SpoilerNode.new(n)
         end
       elsif accept(:bq_start)
-        backtrack(:bq_end, :asterisk) do |n|
+        backtrack(:bq_end, :colon) do |n|
           BlockquoteNode.new(n)
         end
       elsif accept(:bq_author)
         cite = @last.string
-        backtrack(:bq_end, :asterisk) do |n|
+        backtrack(:bq_end, :colon) do |n|
           BlockquoteNode.new(n, cite)
         end
       elsif accept(:raw_start)

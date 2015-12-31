@@ -1,62 +1,48 @@
-[WIP] Recursive-descent Textile parser in Ruby
+Recursive-descent Textile parser in Ruby
 
-bold-rule:
-  | '*' superscript-rule '*'
-  : superscript-rule
-  ;
-
-superscript-rule:
-  | '^' underline-rule '^'
-  : underline-rule
-  ;
-
-underline-rule:
-  | '+' strike-rule '^'
-  : strike-rule
-  ;
-
-strike-rule:
-  | '-' italic-rule '-'
-  : italic-rule
-  ;
-
-italic-rule:
-  | '_' code-rule '_'
-  : code-rule
-  ;
-
-code-rule:
-  | '@' sub-rule '@'
-  : sub-rule
-  ;
-
-sub-rule:
-  | '~' image-rule '~'
+link-rule:
+  | image-rule ':' url
+  | quote-rule ':' url
   : image-rule
   ;
 
 image-rule:
-  | '!' quote-rule '!', (':' link-rule)
+  | '!' quote-rule '!'
   : quote-rule
   ;
 
 quote-rule:
-  | '"' terminal '"', (':' link-rule)
+  | '"' terminal '"'
   : terminal
   ;
 
 terminal:
-  word | space | pre-rule | spoiler-rule | raw-rule
+  | word | space
+  | '*' link-rule '*'
+  | '^' link-rule '^'
+  | '+' link-rule '+'
+  | '-' link-rule '-'
+  | '_' link-rule '_'
+  | '@' link-rule '@'
+  | '~' link-rule '~'
+  | pre-rule | spoiler-rule | bq-rule | raw-rule
+  : *
   ;
 
 spoiler-rule:
-  | '[spoiler]' bold-rule '[/spoiler]'
+  | '[spoiler]' link-rule '[/spoiler]'
   ;
 
 pre-rule:
-  | '[pre]' bold-rule '[/pre]'
+  | '[pre]' link-rule '[/pre]'
+  ;
+
+bq-rule:
+  | '[bq]' link-rule '[/bq]'
+  | '[bq="*"]' link-rule '[/bq]'
   ;
 
 raw-rule:
   | '[==' terminal '==]'
+  | '==' terminal '=='
   ;
