@@ -48,6 +48,9 @@ module Textile
       :bq_end        => /\[\/bq\]/,
       :raw_start     => /\[==/,
       :raw_end       => /==\]/,
+
+      # Treat 2+ of the operators as a word instead:
+      :ignore => /(\*{2,}|\^{2,}|\+{2,}|-{2,}|_{2,}|@{2,}|~{2,})/,
     }.freeze
 
     # By first matching against a union of all possible tokens, we can find
