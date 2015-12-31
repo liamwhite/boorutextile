@@ -116,7 +116,7 @@ module Textile
     end
 
     def build
-      return %{<blockquote author="#{author}">#{child.build}</blockquote>} if author
+      return %{<blockquote title="#{author}">#{child.build}</blockquote>} if author
       return %{<blockquote>#{child.build}</blockquote>}
     end
 

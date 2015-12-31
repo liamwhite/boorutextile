@@ -13,8 +13,8 @@ module Textile
 
       # Oh shit.
       :url => %r{
-                (?:http:\/\/|https:\/\/|\/\/|\/|\#)          # protocol
-                (?:[^%#{RX_SPACE_CHARS}"!]|%[0-9a-fA-F]{2})+ # path
+                (?:http:\/\/|https:\/\/|\/\/|\/|\#)              # protocol
+                (?:[^%#{RX_SPACE_CHARS}"!\n\r]|%[0-9a-fA-F]{2})+ # path
                 [^#{RX_SPACE_CHARS}`~!@$^&"\*_+\-=\[\]\\|;:,.'?\#)] # invalid
               }x,
 

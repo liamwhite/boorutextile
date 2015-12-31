@@ -18,7 +18,7 @@ module Textile
       ast.join('')
     end
 
-    TRIVIAL_OPERATORS = [:asterisk, :caret, :plus, :minus, :underscore, :at, :tilde, :colon].freeze
+    TRIVIAL_OPERATORS = [:asterisk, :caret, :plus, :underscore, :minus, :at, :tilde, :colon].freeze
 
     # Ignores the last one so that we can define it manually
     7.times do |i|
