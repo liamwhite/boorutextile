@@ -126,7 +126,7 @@ module Textile
         output.push input.shift.tap{|t| t.type = op }
         output.concat renest_outer(input.shift(idx2))
         output.push input.shift.tap{|t| t.type = op }
-        input.unshift *output # ruby pls
+        input.unshift(*output) # ruby pls
       end
     end
   end
