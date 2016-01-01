@@ -93,14 +93,12 @@ module Textile
         result = regex.match(@input)
 
         # Make sure that the match starts at the first character.
-        if result && result.pre_match.empty?
-          string = result.to_s
+        next unless result && result.pre_match.empty?
+        string = result.to_s
 
-          # No match? Add it. Better match? Add it.
-          if !best_match || best_match[1].size < string.size
-            best_match = [type, string]
-          end
-        end
+        # No match? Add it. Better match? Add it.
+        next unless !best_match || best_match[1].size < string.size
+        best_match = [type, string]
       end
 
       type, string = best_match

@@ -24,15 +24,13 @@ module Textile
     #   : quote
     def colon
       prox = quote
-      if accept(:colon)
-        if prox.is_a?(QuoteNode) || prox.is_a?(ImageNode)
-          return prox.build_link(@last.string) if accept(:url)
-          PolyTextNode.new(prox, term_node(':'))
-        else
-          PolyTextNode.new(prox, term_node(':'))
-        end
+      return prox unless accept(:colon)
+
+      if prox.is_a?(QuoteNode) || prox.is_a?(ImageNode)
+        return prox.build_link(@last.string) if accept(:url)
+        return PolyTextNode.new(prox, term_node(':'))
       else
-        prox
+        return PolyTextNode.new(prox, term_node(':'))
       end
     end
 
@@ -40,12 +38,9 @@ module Textile
     #   | '"' image '"'
     #   : image
     def quote
-      if accept(:quote)
-        backtrack(:quote, :image) do |n|
-          QuoteNode.new(n)
-        end
-      else
-        image
+      return image unless accept(:quote)
+      backtrack(:quote, :image) do |n|
+        QuoteNode.new(n)
       end
     end
 
@@ -53,25 +48,18 @@ module Textile
     #   | '!' url '!'
     #   : terminal
     def image
-      if accept(:exclamation)
-        if accept(:url)
-          url = @last.string
+      return terminal unless accept(:exclamation)
+      return PolyTextNode.new(term_node('!'), terminal) unless accept(:url)
 
-          # NESTING OVER 9000
-          if accept(:rparen)
-            return ImageNode.new("#{url})") if accept(:exclamation)
-            return PolyTextNode.new(term_node("!#{url})"), terminal)
-          elsif accept(:exclamation)
-            ImageNode.new(url)
-          else
-            PolyTextNode.new(term_node("!#{url}"), terminal)
-          end          
-        else
-          PolyTextNode.new(term_node('!'), terminal)
-        end
+      url = @last.string
+      if accept(:rparen)
+        return ImageNode.new("#{url})") if accept(:exclamation)
+        return PolyTextNode.new(term_node("!#{url})"), terminal)
+      elsif accept(:exclamation)
+        ImageNode.new(url)
       else
-        terminal
-      end
+        PolyTextNode.new(term_node("!#{url}"), terminal)
+      end          
     end
 
     def terminal
@@ -168,11 +156,8 @@ module Textile
     end
 
     def term_node(string, raw = false)
-      if raw
-        TermNode.new(string)
-      else
-        TermNode.new(string, @custom)
-      end
+      return TermNode.new(string, @custom) unless raw
+      return TermNode.new(string)
     end
   end
 end
