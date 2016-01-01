@@ -37,14 +37,14 @@ module Textile
   # Operators in the form of <op>[...]</op>
   OperatorNode = Struct.new(:operator, :child) do
     OPERATOR_TO_HTML = {
-      :asterisk   => 'b',
-      :caret      => 'sup',
-      :plus       => 'ins',
-      :minus      => 'del',
-      :underscore => 'em',
-      :at         => 'code',
-      :tilde      => 'sub',
-      :pre        => 'pre',
+      :bold => 'b',
+      :sup  => 'sup',
+      :ins  => 'ins',
+      :del  => 'del',
+      :em   => 'em',
+      :code => 'code',
+      :sub  => 'sub',
+      :pre  => 'pre',
     }.freeze
 
     def build

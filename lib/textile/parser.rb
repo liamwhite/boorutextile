@@ -39,9 +39,7 @@ module Textile
     #   : image
     def quote
       return image unless accept(:quote)
-      backtrack(:quote, :image) do |n|
-        QuoteNode.new(n)
-      end
+      backtrack(:quote, :image) {|n| QuoteNode.new(n) }
     end
 
     # image-rule:
@@ -67,9 +65,8 @@ module Textile
         buffer = @last.string
         buffer << @last.string while accept(:word) || accept(:space)
         term_node(buffer)
-      elsif accept(:asterisk) || accept(:caret) || accept(:plus) ||
-            accept(:underscore) || accept(:minus) || accept(:at) ||
-            accept(:tilde)
+      elsif accept(:bold) || accept(:sup) || accept(:ins) || accept(:em) ||
+            accept(:del) || accept(:code) || accept(:sub)
         type = @last.type
         backtrack(type, :colon) do |n|
           OperatorNode.new(type, n)
@@ -91,10 +88,10 @@ module Textile
         backtrack(:bq_end, :colon) do |n|
           BlockquoteNode.new(n, cite)
         end
-      elsif accept(:raw_start)
-        term_node(concat_until(:raw_end) || '[==', true)
-      elsif accept(:dblequal)
-        term_node(concat_until(:dblequal) || '==', true)
+      elsif accept(:raw_1)
+        term_node(concat_until(:raw_1), true)
+      elsif accept(:raw_2)
+        term_node(concat_until(:raw_2), true)
       elsif peek?(:eof)
         term_node('')
       else
@@ -141,10 +138,8 @@ module Textile
     end
 
     # Helper for implementing == and [==
-    # Checks to see if the matching token exists, and then eats strings
-    # until the token is found
+    # Eats strings until the token is found
     def concat_until(token)
-      return unless @tokens.index{|op| op.type == token }
       buffer = ""
 
       until accept(token)

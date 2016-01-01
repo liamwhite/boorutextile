@@ -81,7 +81,7 @@ module Textile
         end
       end
 
-      @tokens << LexerToken.new(:eof, '$')
+      renest_outer @tokens << LexerToken.new(:eof, '$')
     end
 
     private
@@ -104,6 +104,30 @@ module Textile
       type, string = best_match
       @input.slice!(0, string.size)
       LexerToken.new(type, string)
+    end
+
+    OPS = {asterisk: :bold, caret: :sup, plus: :ins, minus: :del,
+           underscore: :em, at: :code, tilde: :sub, dblequal: :raw_1}.freeze
+
+    def renest_outer(input)
+      return [] if input.empty?
+      OPS.each {|tok, op| renest_inner(tok, tok, op, input) }
+      renest_inner(:raw_start, :raw_end, :raw_2, input)
+      input
+    end
+
+    def renest_inner(start_tok, end_tok, op, input)
+      while idx1 = input.index{|t| t.type == start_tok}
+        idx2 = input[idx1+1..-1].index{|t| t.type == end_tok}
+        return unless idx2
+
+        output = []
+        output.concat renest_outer(input.shift(idx1))
+        output.push input.shift.tap{|t| t.type = op }
+        output.concat renest_outer(input.shift(idx2))
+        output.push input.shift.tap{|t| t.type = op }
+        input.unshift *output # ruby pls
+      end
     end
   end
 end
