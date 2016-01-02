@@ -1,61 +1,61 @@
 module Textile
   class Lexer
-    LexerToken = Struct.new(:type, :string)
+    LexerToken = Struct.new(:type, :string, :nesting)
 
     # Ruby \s does not match extra unicode space characters.
     RX_SPACE_CHARS = ' \t\u00a0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000'
 
     # Token list for lexer.
-    RX_TOKENS = {
-      # Paragraph mark
-      :paragraph => /\n\n/,
-      :space => /[#{RX_SPACE_CHARS}]/,
+    # The hash defines what matching operand turns this into an operator.
+    RX_TOKENS = [
+      [:newline, /\n/],
+      [:space, /[#{RX_SPACE_CHARS}]/],
 
       # Oh shit.
-      :url => %r{
-                (?:http:\/\/|https:\/\/|\/\/|\/|\#)              # protocol
-                (?:[^%#{RX_SPACE_CHARS}"!\n\r]|%[0-9a-fA-F]{2})+ # path
-                [^#{RX_SPACE_CHARS}`~!@$^&"\*_+\-=\[\]\\|;:,.'?\#)] # invalid
-              }x,
+      [:url, %r{
+               (?:http:\/\/|https:\/\/|\/\/|\/|\#)              # protocol
+               (?:[^%#{RX_SPACE_CHARS}"!\n\r]|%[0-9a-fA-F]{2})+ # path
+               [^#{RX_SPACE_CHARS}`~!@$^&"\*_+\-=\[\]\\|;:,.'?\#)] # invalid
+             }x],
 
       # Context-sensitive operators that require a matching pair to
       # be considered an operator
-      :asterisk   => /\*/,
-      :caret      => /\^/,
-      :plus       => /\+/,
-      :minus      => /-/,
-      :underscore => /_/,
-      :at         => /@/,
-      :tilde      => /~/,
-      :dblequal   => /==/,
+      [:asterisk,   /\*/, end: :asterisk,   op: :bold],
+      [:caret,      /\^/, end: :caret,      op: :sup],
+      [:plus,       /\+/, end: :plus,       op: :ins],
+      [:minus,      /-/,  end: :minus,      op: :del],
+      [:underscore, /_/,  end: :underscore, op: :em],
+      [:at,         /@/,  end: :at,         op: :code],
+      [:tilde,      /~/,  end: :tilde,      op: :sub],
+      [:dblequal,   /==/, end: :dblequal,   op: :raw_1],
 
       # Link operators
-      :exclamation => /!/,
-      :quote       => /"/,
-      :colon       => /:/,
+      [:exclamation, /!/],
+      [:colon,       /:/],
+      [:quot,        /"/, end: :quot, op: :quote],
 
       # This is a link operator too, albeit a special one. Image URLs are
       # allowed to contain a closing parenthesis, while quote URLs are not.
-      :rparen      => /\)/,
+      [:rparen, /\)/],
 
       # Block operators
-      :spoiler_start => /\[spoiler\]/,
-      :spoiler_end   => /\[\/spoiler\]/,
-      :pre_start     => /\[pre\]/,
-      :pre_end       => /\[\/pre\]/,
-      :bq_start      => /\[bq\]/,
-      :bq_author     => /\[bq="([^"]*)"\]/,
-      :bq_end        => /\[\/bq\]/,
-      :raw_start     => /\[==/,
-      :raw_end       => /==\]/,
+      [:spoiler_start, /\[spoiler\]/,      end: :spoiler_end, op: :spoiler],
+      [:spoiler_end,   /\[\/spoiler\]/],
+      [:pre_start,     /\[pre\]/,          end: :pre_end, op: :pre],
+      [:pre_end,       /\[\/pre\]/],
+      [:bq_start,      /\[bq\]/,           end: :bq_end, op: :block],
+      [:bq_author,     /\[bq="([^"]*)"\]/, end: :bq_end, op: :block_author],
+      [:bq_end,        /\[\/bq\]/],
+      [:raw_start,     /\[==/,             end: :raw_end, op: :raw_2],
+      [:raw_end,       /==\]/],
 
       # Treat 2+ of the operators as a word instead:
-      :ignore => /(\*{2,}|\^{2,}|\+{2,}|-{2,}|_{2,}|@{2,}|~{2,})/,
-    }.freeze
+      [:ignore, /(\*{2,}|\^{2,}|\+{2,}|-{2,}|_{2,}|@{2,}|~{2,})/],
+    ].freeze
 
     # By first matching against a union of all possible tokens, we can find
     # the first match possible *and* match the longest token possible.
-    RX_MATCHABLE = Regexp.union(RX_TOKENS.values).freeze
+    RX_MATCHABLE = Regexp.union(RX_TOKENS.map{|k| k[1]}).freeze
 
     def initialize(input)
       @input = input.dup
@@ -81,7 +81,7 @@ module Textile
         end
       end
 
-      renest_outer @tokens << LexerToken.new(:eof, '$')
+      @tokens << LexerToken.new(:eof, '$')
     end
 
     private
@@ -89,7 +89,7 @@ module Textile
     def match_token
       best_match = nil
 
-      RX_TOKENS.each do |type, regex|
+      RX_TOKENS.each do |type, regex, nest|
         result = regex.match(@input)
 
         # Make sure that the match starts at the first character.
@@ -98,36 +98,12 @@ module Textile
 
         # No match? Add it. Better match? Add it.
         next unless !best_match || best_match[1].size < string.size
-        best_match = [type, string]
+        best_match = [type, string, nest]
       end
 
-      type, string = best_match
+      type, string, nest = best_match
       @input.slice!(0, string.size)
-      LexerToken.new(type, string)
-    end
-
-    OPS = {asterisk: :bold, caret: :sup, plus: :ins, minus: :del,
-           underscore: :em, at: :code, tilde: :sub, dblequal: :raw_1}.freeze
-
-    def renest_outer(input)
-      return [] if input.empty?
-      OPS.each {|tok, op| renest_inner(tok, tok, op, input) }
-      renest_inner(:raw_start, :raw_end, :raw_2, input)
-      input
-    end
-
-    def renest_inner(start_tok, end_tok, op, input)
-      while idx1 = input.index{|t| t.type == start_tok}
-        idx2 = input[idx1+1..-1].index{|t| t.type == end_tok}
-        return unless idx2
-
-        output = []
-        output.concat renest_outer(input.shift(idx1))
-        output.push input.shift.tap{|t| t.type = op }
-        output.concat renest_outer(input.shift(idx2))
-        output.push input.shift.tap{|t| t.type = op }
-        input.unshift(*output) # ruby pls
-      end
+      LexerToken.new(type, string, nest)
     end
   end
 end
