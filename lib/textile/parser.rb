@@ -39,7 +39,7 @@ module Textile
     #   : image
     def quote
       return image unless accept(:quote)
-      backtrack(:quote, :image) {|n| QuoteNode.new(n) }
+      nest(:quote, :image) {|n| QuoteNode.new(n) }
     end
 
     # image-rule:
@@ -68,30 +68,29 @@ module Textile
       elsif accept(:bold) || accept(:sup) || accept(:ins) || accept(:em) ||
             accept(:del) || accept(:code) || accept(:sub)
         type = @last.type
-        backtrack(type, :colon) do |n|
+        nest(type, :colon) do |n|
           OperatorNode.new(type, n)
         end
       elsif accept(:pre)
-        backtrack(:pre, :colon) do |n|
+        nest(:pre, :colon) do |n|
           OperatorNode.new(:pre, n)
         end
       elsif accept(:spoiler)
-        backtrack(:spoiler, :colon) do |n|
+        nest(:spoiler, :colon) do |n|
           SpoilerNode.new(n)
         end
       elsif accept(:block)
-        backtrack(:block, :colon) do |n|
+        nest(:block, :colon) do |n|
           BlockquoteNode.new(n)
         end
       elsif accept(:block_author)
         cite = @last.string
-        backtrack(:block_author, :colon) do |n|
+        nest(:block_author, :colon) do |n|
           BlockquoteNode.new(n, cite)
         end
-      elsif accept(:raw_1)
-        term_node(concat_until(:raw_1), true)
-      elsif accept(:raw_2)
-        term_node(concat_until(:raw_2), true)
+      elsif accept(:raw_1) || accept(:raw_2)
+        type = @last.type
+        term_node(concat_until(type), true)
       elsif peek?(:eof)
         term_node('')
       else
@@ -115,26 +114,20 @@ module Textile
       @current && @current.type == type
     end
 
-    # Textile cannot use predictive parsing, because markup isn't context-free.
-    # Finds if this operator has a matching pair (+next_token+) in @tokens, and
-    # yields the current parse tree if it does; otherwise, returns the operator
-    # string as a term node including the rest of the parse tree (+next_node+).
-    def backtrack(next_token, next_node)
+    # Helper for nesting operators.
+    def nest(next_token, next_node)
       op = @last.string
 
       # for 2 adjacent ops, bail out
       return term_node("#{op}#{@last.string}") if accept(next_token)
 
       current = PolyTextNode.new
-      loop do
+      until accept(next_token)
         prox = send(next_node)
         current.children << prox
-        if accept(next_token)
-          return yield current
-        elsif peek?(:eof)
-          return PolyTextNode.new(term_node(op), current)
-        end
       end
+
+      yield current
     end
 
     # Helper for implementing == and [==

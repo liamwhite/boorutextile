@@ -11,8 +11,9 @@ module Textile
       while idx1 = tokens.index(&:nesting)
         tok = tokens[idx1].nesting
 
-        # Find the next one
-        idx2 = tokens[idx1+1..-1].index {|t| t.type == tok[:end] }
+        # See if we find the next one before the break
+        idx2 = tokens[idx1+1..-1].index {|t| t.type == tok[:end] || t.type == tok[:break] }
+        idx2 &&= (tokens[idx2].type == tok[:end])
 
         if idx2
           output.concat tokens.shift(idx1)                       # push outside tokens

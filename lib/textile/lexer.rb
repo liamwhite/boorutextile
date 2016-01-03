@@ -9,6 +9,7 @@ module Textile
     # The hash defines what matching operand turns this into an operator.
     RX_TOKENS = [
       [:newline, /\n/],
+      [:paragraph, /\n\n/],
       [:space, /[#{RX_SPACE_CHARS}]/],
 
       # Oh shit.
@@ -20,14 +21,14 @@ module Textile
 
       # Context-sensitive operators that require a matching pair to
       # be considered an operator
-      [:asterisk,   /\*/, end: :asterisk,   op: :bold],
-      [:caret,      /\^/, end: :caret,      op: :sup],
-      [:plus,       /\+/, end: :plus,       op: :ins],
-      [:minus,      /-/,  end: :minus,      op: :del],
-      [:underscore, /_/,  end: :underscore, op: :em],
-      [:at,         /@/,  end: :at,         op: :code],
-      [:tilde,      /~/,  end: :tilde,      op: :sub],
-      [:dblequal,   /==/, end: :dblequal,   op: :raw_1],
+      [:asterisk,   /\*/, end: :asterisk,   op: :bold, break: :paragraph],
+      [:caret,      /\^/, end: :caret,      op: :sup,  break: :paragraph],
+      [:plus,       /\+/, end: :plus,       op: :ins,  break: :paragraph],
+      [:minus,      /-/,  end: :minus,      op: :del,  break: :paragraph],
+      [:underscore, /_/,  end: :underscore, op: :em,   break: :paragraph],
+      [:tilde,      /~/,  end: :tilde,      op: :sub,  break: :paragraph],
+      [:at,         /@/,  end: :at,         op: :code, break: :paragraph],
+      [:dblequal,   /==/, end: :dblequal,   op: :raw_1, break: :paragraph],
 
       # Link operators
       [:exclamation, /!/],
