@@ -71,27 +71,29 @@ module Textile
         backtrack(type, :colon) do |n|
           OperatorNode.new(type, n)
         end
-      elsif accept(:pre_start)
-        backtrack(:pre_end, :colon) do |n|
+      elsif accept(:pre)
+        backtrack(:pre, :colon) do |n|
           OperatorNode.new(:pre, n)
         end
-      elsif accept(:spoiler_start)
-        backtrack(:spoiler_end, :colon) do |n|
+      elsif accept(:spoiler)
+        backtrack(:spoiler, :colon) do |n|
           SpoilerNode.new(n)
         end
-      elsif accept(:bq_start)
-        backtrack(:bq_end, :colon) do |n|
+      elsif accept(:block)
+        backtrack(:block, :colon) do |n|
           BlockquoteNode.new(n)
         end
-      elsif accept(:bq_author)
+      elsif accept(:block_author)
         cite = @last.string
-        backtrack(:bq_end, :colon) do |n|
+        backtrack(:block_author, :colon) do |n|
           BlockquoteNode.new(n, cite)
         end
       elsif accept(:raw_1)
         term_node(concat_until(:raw_1), true)
       elsif accept(:raw_2)
         term_node(concat_until(:raw_2), true)
+      elsif accept(:bracket)
+        backtrack(:bracket, :colon) {|n| n}
       elsif peek?(:eof)
         term_node('')
       else

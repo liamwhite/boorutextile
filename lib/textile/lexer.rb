@@ -13,9 +13,9 @@ module Textile
 
       # Oh shit.
       [:url, %r{
-               (?:http:\/\/|https:\/\/|\/\/|\/|\#)              # protocol
-               (?:[^%#{RX_SPACE_CHARS}"!\n\r]|%[0-9a-fA-F]{2})+ # path
-               [^#{RX_SPACE_CHARS}`~!@$^&"\*_+\-=\[\]\\|;:,.'?\#)] # invalid
+               (?:http:\/\/|https:\/\/|\/\/|\/|\#)                     # protocol
+               (?:[^%#{RX_SPACE_CHARS}"!\n\r]|%[0-9a-fA-F]{2})+        # path
+               [^#{RX_SPACE_CHARS}`~!@$^&"\n\r\*_+\-=\[\]\\|;:,.'?\#)] # invalid
              }x],
 
       # Context-sensitive operators that require a matching pair to
@@ -48,9 +48,11 @@ module Textile
       [:bq_end,        /\[\/bq\]/],
       [:raw_start,     /\[==/,             end: :raw_end, op: :raw_2],
       [:raw_end,       /==\]/],
+      [:lbracket,      /\[/                end: :rbracket, op: :bracket],
+      [:rbracket,      /\]/],
 
       # Treat 2+ of the operators as a word instead:
-      [:ignore, /(\*{2,}|\^{2,}|\+{2,}|-{2,}|_{2,}|@{2,}|~{2,})/],
+      [:ignore, /(\*{2,}|\^{2,}|\+{2,}|-{2,}|_{2,}|@{2,}|~{2,}|\[{2,})/],
     ].freeze
 
     # By first matching against a union of all possible tokens, we can find
