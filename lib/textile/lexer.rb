@@ -48,11 +48,9 @@ module Textile
       [:bq_end,        /\[\/bq\]/],
       [:raw_start,     /\[==/,             end: :raw_end, op: :raw_2],
       [:raw_end,       /==\]/],
-      [:lbracket,      /\[/                end: :rbracket, op: :bracket],
-      [:rbracket,      /\]/],
 
       # Treat 2+ of the operators as a word instead:
-      [:ignore, /(\*{2,}|\^{2,}|\+{2,}|-{2,}|_{2,}|@{2,}|~{2,}|\[{2,})/],
+      [:ignore, /(\*{2,}|\^{2,}|\+{2,}|-{2,}|_{2,}|@{2,}|~{2,})/],
     ].freeze
 
     # By first matching against a union of all possible tokens, we can find

@@ -92,8 +92,6 @@ module Textile
         term_node(concat_until(:raw_1), true)
       elsif accept(:raw_2)
         term_node(concat_until(:raw_2), true)
-      elsif accept(:bracket)
-        backtrack(:bracket, :colon) {|n| n}
       elsif peek?(:eof)
         term_node('')
       else
