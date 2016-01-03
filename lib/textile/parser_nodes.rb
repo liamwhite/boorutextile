@@ -1,7 +1,7 @@
 # Parser nodes for the Textile parser
 module Textile
   def self.html_escape(term)
-    term.gsub(/[\n\r&<>]/, "\n" => '<br/>', "\r" => '', '&' => '&amp;', '<' => '&lt;', '>' => '&gt;')
+    term.gsub(/[\n&<>"]/, "\n" => '<br/>', '"' => '&quot;', '&' => '&amp;', '<' => '&lt;', '>' => '&gt;')
   end
 
   RX_TITLE = /\A([^\(]+)\(([^\)]*)\)\z/.freeze
