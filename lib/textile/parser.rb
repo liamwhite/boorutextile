@@ -11,6 +11,8 @@ module Textile
       @parsed = parse
     end
 
+    private
+
     def parse
       advance
       ast = []
@@ -61,9 +63,9 @@ module Textile
     end
 
     def terminal
-      if accept(:word) || accept(:space)
+      if accept(:word)
         buffer = @last.string
-        buffer << @last.string while accept(:word) || accept(:space)
+        buffer << @last.string while accept(:word)
         term_node(buffer)
       elsif accept(:bold) || accept(:sup) || accept(:ins) || accept(:em) ||
             accept(:del) || accept(:code) || accept(:sub)

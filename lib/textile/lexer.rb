@@ -5,106 +5,110 @@ module Textile
     # Ruby \s does not match extra unicode space characters.
     RX_SPACE_CHARS = ' \t\u00a0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000'
 
-    # Token list for lexer.
-    # The hash defines what matching operand turns this into an operator.
-    RX_TOKENS = [
-      [:newline, /\n/],
-      [:paragraph, /\n\n/],
-      [:space, /[#{RX_SPACE_CHARS}]/],
-
-      # Oh shit.
-      [:url, %r{
+    RX_URL = %r{
                (?:http:\/\/|https:\/\/|\/\/|\/|\#)                     # protocol
                (?:[^%#{RX_SPACE_CHARS}"!\n\r]|%[0-9a-fA-F]{2})+        # path
                [^#{RX_SPACE_CHARS}`~!@$^&"\n\r\*_+\-=\[\]\\|;:,.'?\#)] # invalid
-             }x],
+             }x
+
+    # Tokens that do not require regex. NB put longer tokens first
+    # [name, starts_with (, nest_options)]
+    NON_RX_TOKENS = [
+      # Newlines and paragraphs
+      [:paragraph, "\n\n"],
+      [:paragraph, "\r\n\r\n"],
+      [:newline, "\n"],
+      [:newline, "\r\n"],
+
+      # Block operators
+      [:spoiler_start, "[spoiler]", end: :spoiler_end, op: :spoiler],
+      [:spoiler_end,   "[/spoiler]"],
+      [:pre_start,     "[pre]",     end: :pre_end, op: :pre],
+      [:pre_end,       "[/pre]"],
+      [:bq_start,      "[bq]",      end: :bq_end, op: :block],
+      [:bq_end,        "[/bq]"],
+      [:raw_start,     "[==",       end: :raw_end, op: :raw_2],
+      [:raw_end,       "==]"],
 
       # Context-sensitive operators that require a matching pair to
       # be considered an operator
-      [:asterisk,   /\*/, end: :asterisk,   op: :bold, break: :paragraph],
-      [:caret,      /\^/, end: :caret,      op: :sup,  break: :paragraph],
-      [:plus,       /\+/, end: :plus,       op: :ins,  break: :paragraph],
-      [:minus,      /-/,  end: :minus,      op: :del,  break: :paragraph],
-      [:underscore, /_/,  end: :underscore, op: :em,   break: :paragraph],
-      [:tilde,      /~/,  end: :tilde,      op: :sub,  break: :paragraph],
-      [:at,         /@/,  end: :at,         op: :code, break: :paragraph],
-      [:dblequal,   /==/, end: :dblequal,   op: :raw_1, break: :paragraph],
+      [:asterisk,   "*", end: :asterisk,   op: :bold, break: :paragraph],
+      [:caret,      "^", end: :caret,      op: :sup,  break: :paragraph],
+      [:plus,       "+", end: :plus,       op: :ins,  break: :paragraph],
+      [:minus,      "-",  end: :minus,      op: :del,  break: :paragraph],
+      [:underscore, "_",  end: :underscore, op: :em,   break: :paragraph],
+      [:tilde,      "~",  end: :tilde,      op: :sub,  break: :paragraph],
+      [:at,         "@",  end: :at,         op: :code, break: :paragraph],
+      [:dblequal,   "==", end: :dblequal,   op: :raw_1, break: :paragraph],
 
       # Link operators
-      [:exclamation, /!/],
-      [:colon,       /:/],
-      [:quot,        /"/, end: :quot, op: :quote],
+      [:exclamation, "!"],
+      [:colon,       ":"],
+      [:quot,        '"', end: :quot, op: :quote],
 
       # This is a link operator too, albeit a special one. Image URLs are
       # allowed to contain a closing parenthesis, while quote URLs are not.
-      [:rparen, /\)/],
-
-      # Block operators
-      [:spoiler_start, /\[spoiler\]/,      end: :spoiler_end, op: :spoiler],
-      [:spoiler_end,   /\[\/spoiler\]/],
-      [:pre_start,     /\[pre\]/,          end: :pre_end, op: :pre],
-      [:pre_end,       /\[\/pre\]/],
-      [:bq_start,      /\[bq\]/,           end: :bq_end, op: :block],
-      [:bq_author,     /\[bq="([^"]*)"\]/, end: :bq_end, op: :block_author],
-      [:bq_end,        /\[\/bq\]/],
-      [:raw_start,     /\[==/,             end: :raw_end, op: :raw_2],
-      [:raw_end,       /==\]/],
-
-      # Treat 2+ of the operators as a word instead:
-      [:ignore, /(\*{2,}|\^{2,}|\+{2,}|-{2,}|_{2,}|@{2,}|~{2,})/],
+      [:rparen, ")"],
     ].freeze
 
-    # By first matching against a union of all possible tokens, we can find
-    # the first match possible *and* match the longest token possible.
-    RX_MATCHABLE = Regexp.union(RX_TOKENS.map{|k| k[1]}).freeze
-
+    # Tokens that require regex.
+    # [name, starts_with, regex (, nest_options)]
+    RX_TOKENS = [
+      [:bq_author, '[bq="', /\[bq="([^"]*)"\]/, end: :bq_end, op: :block_author],
+      [:url, 'http:', RX_URL],
+      [:url, 'https:', RX_URL],
+      [:url, '/', RX_URL], # also matches //
+      [:url, '#', RX_URL],
+    ].freeze
+    
     def initialize(input)
       @input = input.dup
       @tokens = []
     end
-
-    # Consume @input and convert it into tokens.
+    
     def lex
       until @input.empty?
-        md = RX_MATCHABLE.match(@input)
+        if tok = match
+          if @word
+            @tokens << @word
+            @word = nil
+          end
 
-        if md
-          # Slice off the portion before the match
-          pre = @input.slice!(0, md.pre_match.size)
-          @tokens << LexerToken.new(:word, pre) unless pre.empty?
-
-          # Now add the main match group
-          @tokens << match_token
+          @tokens << tok
         else
-          # Nothing to do here.
-          @tokens << LexerToken.new(:word, @input)
-          @input = ''
+          @word ||= LexerToken.new(:word, "")
+          @word.string << @input[0]
+          @input = @input[1 .. -1]
         end
       end
-
+      
+      @tokens << @word if @word
       @tokens << LexerToken.new(:eof, '$')
     end
-
-    private
-
-    def match_token
-      best_match = nil
-
-      RX_TOKENS.each do |type, regex, nest|
-        result = regex.match(@input)
-
-        # Make sure that the match starts at the first character.
-        next unless result && result.pre_match.empty?
-        string = result.to_s
-
-        # No match? Add it. Better match? Add it.
-        next unless !best_match || best_match[1].size < string.size
-        best_match = [type, string, nest]
+    
+    def match
+      # First try RX_TOKENS
+      RX_TOKENS.each do |name, start, regex, nesting|
+        if @input.start_with?(start)
+          # Does it match?
+          if (md = regex.match(@input))
+            string = md.to_s
+            @input = @input[string.size .. -1]
+            return LexerToken.new(name, string, nesting)
+          end
+        end
       end
-
-      type, string, nest = best_match
-      @input.slice!(0, string.size)
-      LexerToken.new(type, string, nest)
+      
+      # No luck in RX_TOKENS, go to regular
+      NON_RX_TOKENS.each do |name, start, nesting|
+        if @input.start_with?(start)
+          @input = @input[start.size .. -1]
+          return LexerToken.new(name, start, nesting)
+        end
+      end
+      
+      # Nothing left.
+      nil
     end
   end
 end
