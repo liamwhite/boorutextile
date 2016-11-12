@@ -1,10 +1,7 @@
-require 'textile/lexer'
 require 'textile/parser'
-require 'textile/renester'
 
 module Textile
-  def self.parse(text, &block)
-    tokens = Renester.renest(Lexer.new(text).lex)
-    Parser.new(tokens, block).parsed
+  def self.parse(text)
+    TextileParser.parse(text)
   end
 end
