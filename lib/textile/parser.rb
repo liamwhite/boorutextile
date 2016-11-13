@@ -6,79 +6,98 @@ module TextileParser
 
   def parse(text)
     ary = []
-    ary << nesting(text) until text.empty?
+    operand(ary, text) until text.empty?
     MultiNode.new(ary)
   end
 
-  def nesting(text)
-    if    text =~ /\A#{SYMS[:raw_bracket]}/
-      balanced = balance_markup(text, $&, '[==', '==]').match(SYMS[:raw_bracket])[1]
-      RawTextNode.new(balanced)
-    elsif text =~ /\A#{SYMS[:bq_author]}/
-      balanced = balance_markup(text, $&, BQ_LEFT, '[/bq]').match(SYMS[:bq_author])[2]
-      HTMLNode.new(:blockquote, parse(balanced), title: $1)
-    elsif text =~ /\A#{SYMS[:bq]}/
-      balanced = balance_markup(text, $&, BQ_LEFT, '[/bq]').match(SYMS[:bq])[1]
-      HTMLNode.new(:blockquote, parse(balanced))
-    elsif text =~ /\A#{SYMS[:spoiler]}/
-      balanced = balance_markup(text, $&, '[spoiler]', '[/spoiler]').match(SYMS[:spoiler])[1]
-      HTMLNode.new(:span, parse(balanced), class: 'spoiler')
-    else
-      non_nesting(text)
-    end
+  def find_syms(text)
+    # Find possible symbol matches
+    syms = SYM_TO_INDEX.map    { |sym, index| [sym, text.index(index)] }
+                       .reject { |sym, index| index.nil? }
+
+    # Find closest to start of string
+    min = syms.map{ |x| x[1] }.min
+
+    # Get associated regexps and find first
+    matchdata = nil
+    match = syms.select { |sym, index| index == min }
+                .map    { |sym, index| [sym, SYM_TO_REGEX[sym]] }
+                .detect { |sym, re| matchdata = re.match(text) }
+
+    # [sym, matchdata]
+    [match[0], matchdata] if match
   end
 
-  def non_nesting(text)
-    if    data = match(text, :raw)
-      RawTextNode.new(data[1])
-    elsif data = match(text, :link_title_bracket) || match(text, :link_title)
-      HTMLNode.new(:a, parse(data[1]), title: data[2], href: data[3])
-    elsif data = match(text, :link_bracket) || match(text, :link)
-      HTMLNode.new(:a, parse(data[1]), href: data[2])
-    elsif data = match(text, :image_link_title_bracket) || match(text, :image_link_title)
-      HTMLNode.new(:a, ImageNode.new(data[1]), title: data[2], href: data[3])
-    elsif data = match(text, :image_link_bracket) || match(text, :image_link)
-      HTMLNode.new(:a, ImageNode.new(data[1]), href: data[2])
-    elsif data = match(text, :image_title_bracket) || match(text, :image_title)
-      HTMLNode.new(:span, ImageNode.new(data[1]), title: data[2])
-    elsif data = match(text, :image_bracket) || match(text, :image)
-      ImageNode.new(data[1])
-    elsif data = match(text, :dblbold_bracket) || match(text, :dblbold)
-      HTMLNode.new(:b, parse(data[1]))
-    elsif data = match(text, :bold_bracket) || match(text, :bold)
-      HTMLNode.new(:strong, parse(data[1]))
-    elsif data = match(text, :dblitalic_bracket) || match(text, :dblitalic)
-      HTMLNode.new(:i, parse(data[1]))
-    elsif data = match(text, :italic_bracket) || match(text, :italic)
-      HTMLNode.new(:em, parse(data[1]))
-    elsif data = match(text, :code_bracket) || match(text, :code)
-      HTMLNode.new(:code, parse(data[1]))
-    elsif data = match(text, :ins_bracket) || match(text, :ins)
-      HTMLNode.new(:ins, parse(data[1]))
-    elsif data = match(text, :sup_bracket) || match(text, :sup)
-      HTMLNode.new(:sup, parse(data[1]))
-    elsif data = match(text, :del_bracket) || match(text, :del)
-      HTMLNode.new(:del, parse(data[1]))
-    elsif data = match(text, :sub_bracket) || match(text, :sub)
-      HTMLNode.new(:sub, parse(data[1]))
-    elsif data = match(text, :cite_bracket) || match(text, :cite)
-      HTMLNode.new(:cite, parse(data[1]))
+  def operand(ary, text)
+    sym, md = find_syms(text)
+    if sym.nil? || md.nil?
+      # No match, consume entire string.
+      return ary << TextNode.new(text.slice!(0 .. text.length))
+    end
+
+    # Consume string before match.
+    if md.pre_match.size > 0
+      ary << TextNode.new(text.slice!(0 ... md.pre_match.size))
+    end
+
+    # Act on match.
+    # FIXME: Separate logic for string consumption:
+    case sym
+    when :raw_bracket
+      balanced = balance_markup(text, md.to_s, '[==', '==]').match(SYM_TO_REGEX[:raw_bracket])[1]
+      ary << RawTextNode.new(balanced)
+    when :bq_author
+      balanced = balance_markup(text, md.to_s, BQ_LEFT, '[/bq]').match(SYM_TO_REGEX[:bq_author])[2]
+      ary << HTMLNode.new(:blockquote, parse(balanced), title: $1)
+    when :bq
+      balanced = balance_markup(text, md.to_s, BQ_LEFT, '[/bq]').match(SYM_TO_REGEX[:bq])[1]
+      ary << HTMLNode.new(:blockquote, parse(balanced))
+    when :spoiler
+      balanced = balance_markup(text, md.to_s, '[spoiler]', '[/spoiler]').match(SYM_TO_REGEX[:spoiler])[1]
+      ary << HTMLNode.new(:span, parse(balanced), class: 'spoiler')
     else
-      removed = text.split(ALL_MATCHERS, 2)[0]
-      text.slice!(0 ... removed.length)
-      TextNode.new(removed)
+      text.slice!(0 .. md.to_s.size)
+    end
+
+    case sym
+    when :raw
+      ary << RawTextNode.new(md[1])
+    when :link_title_bracket, :link_title
+      ary << HTMLNode.new(:a, parse(md[1]), title: md[2], href: md[3])
+    when :link_bracket, :link
+      ary << HTMLNode.new(:a, parse(md[1]), href: md[2])
+    when :image_link_title_bracket, :image_link_title
+      ary << HTMLNode.new(:a, ImageNode.new(md[1]), title: md[2], href: md[3])
+    when :image_link_bracket, :image_link
+      ary << HTMLNode.new(:a, ImageNode.new(md[1]), href: md[2])
+    when :image_title_bracket, :image_title
+      ary << HTMLNode.new(:span, ImageNode.new(md[1]), title: md[2])
+    when :image_bracket, :image
+      ary << ImageNode.new(md[1])
+    when :dblbold_bracket, :dblbold
+      ary << HTMLNode.new(:b, parse(md[1]))
+    when :bold_bracket, :bold
+      ary << HTMLNode.new(:strong, parse(md[1]))
+    when :dblitalic_bracket, :dblitalic
+      ary << HTMLNode.new(:i, parse(md[1]))
+    when :italic_bracket, :italic
+      ary << HTMLNode.new(:em, parse(md[1]))
+    when :code_bracket, :code
+      ary << HTMLNode.new(:code, parse(md[1]))
+    when :ins_bracket, :ins
+      ary << HTMLNode.new(:ins, parse(md[1]))
+    when :sup_bracket, :sup
+      ary << HTMLNode.new(:sup, parse(md[1]))
+    when :del_bracket, :del
+      ary << HTMLNode.new(:del, parse(md[1]))
+    when :sub_bracket, :sub
+      ary << HTMLNode.new(:sub, parse(md[1]))
+    when :cite_bracket, :cite
+      ary << HTMLNode.new(:cite, parse(md[1]))
     end
   end
 
   private
-
-  # Cuts a match out of text.
-  def match(text, sym)
-    return unless text =~ /\A#{SYMS[sym]}/
-
-    text.slice!(0 ... $&.length)
-    $~
-  end
 
   # Find the longest substring that contains balanced markup,
   # or the whole string if this is impossible.
@@ -116,45 +135,53 @@ module TextileParser
 
   BQ_LEFT = /\[bq="([^"]*)"\]|\[bq\]/
 
-  SYMS = {
-    :raw_bracket => /\[==(.*)==\]/,
-    :raw => /==(.*)==/,
-    :bq => /\[bq\](.*)\[\/bq\]/,
-    :bq_author => /\[bq="([^"]*)"\](.*)\[\/bq\]/,
-    :spoiler => /\[spoiler\](.*)\[\/spoiler\]/,
-    :link_title_bracket => /\A\["([^"]*)\(([^\)]*)\)":(#{RX_URL})\]/,
-    :link_title => /"([^"]*)\(([^\)]*)\)":(#{RX_URL})/,
-    :link_bracket => /\["([^"]*)":(#{RX_URL})\]/,
-    :link => /"([^"]*)":(#{RX_URL})/,
-    :image_link_title_bracket => /\[!(#{RX_URL})\(([^\)]*)\)!:(#{RX_URL})\]/,
-    :image_link_title => /!(#{RX_URL})\(([^\)]*)\)!:(#{RX_URL})/,
-    :image_link_bracket => /\[!(#{RX_URL})!:(#{RX_URL})\]/,
-    :image_link => /!(#{RX_URL})!:(#{RX_URL})/,
-    :image_title_bracket => /\[!(#{RX_URL})\(([^\)]*)\)!\]/,
-    :image_title => /!(#{RX_URL})\(([^\)]*)\)!/,
-    :image_bracket => /\[!(#{RX_URL})!\]/,
-    :image => /!(#{RX_URL})!/,
-    :dblbold_bracket => /\[\*\*((?:.|\n.|\n(?=\*\*\]))+?)\*\*\]/,
-    :dblbold => /\*\*((?:.|\n.|\n(?=\*\*))+?)\*\*/,
-    :bold_bracket => /\[\*((?:.|\n.|\n(?=\*\]))+?)\*\]/,
-    :bold => /\*((?:.|\n.|\n(?=\*\]))+?)\*/,
-    :dblitalic_bracket => /\[__((?:.|\n.|\n(?=__\]))+?)__\]/,
-    :dblitalic => /__((?:.|\n.|\n(?=__))+?)__/,
-    :italic_bracket => /\A\[_((?:.|\n.|\n(?=_\]))+?)_\]/,
-    :italic => /_((?:.|\n.|\n(?=_))+?)_/,
-    :code_bracket => /\[@((?:.|\n.|\n(?=@\]))+?)@\]/,
-    :code => /@((?:.|\n.|\n(?=@))+?)@/,
-    :ins_bracket => /\A\[\+((?:.|\n.|\n(?=\+\]))+?)\+\]/,
-    :ins => /\+((?:.|\n.|\n(?=\+))+?)\+/,
-    :sup_bracket => /\A\[\^((?:.|\n.|\n(?=\^\]))+?)\^\]/,
-    :sup => /\^((?:.|\n.|\n(?=\^))+?)\^/,
-    :del_bracket => /\A\[\-((?:.|\n.|\n(?=\-\]))+?)\-\]/,
-    :del => /\-((?:.|\n.|\n(?=\-))+?)\-/,
-    :sub_bracket => /\A\[\~((?:.|\n.|\n(?=\~\]))+?)\~\]/,
-    :sub => /\~((?:.|\n.|\n(?=\~))+?)\~/,
-    :cite_bracket => /\A\[\?\?((?:.|\n.|\n(?=\?\?\]))+?)\?\?\]/,
-    :cite => /\?\?((?:.|\n.|\n(?=\?\?))+?)\?\?/,
-  }
+  # Symbol table, in operator precedence order:
+  #   0. Symbol name.
+  #   1. Start string for optimized matching.
+  #   2. Complete match definition.
+  SYMS = [
+    [:raw_bracket, '[==',       /\[==(.*)==\]/],
+    [:bq_author,   '[bq="',     /\[bq="([^"]*)"\](.*)\[\/bq\]/],
+    [:bq,          '[bq]',      /\[bq\](.*)\[\/bq\]/],
+    [:spoiler,     '[spoiler]', /\[spoiler\](.*)\[\/spoiler\]/],
+    [:raw,         '==',        /==(.*)==/],
 
-  ALL_MATCHERS = Regexp.union(SYMS.values)
+    [:link_title_bracket, '["', /\A\["([^"]*)\(([^\)]*)\)":(#{RX_URL})\]/],
+    [:link_title,         '"',  /"([^"]*)\(([^\)]*)\)":(#{RX_URL})/],
+    [:link_bracket,       '["', /\["([^"]*)":(#{RX_URL})\]/],
+    [:link,               '"',  /"([^"]*)":(#{RX_URL})/],
+
+    [:image_link_title_bracket, '[!', /\[!(#{RX_URL})\(([^\)]*)\)!:(#{RX_URL})\]/],
+    [:image_link_title,         '!',  /!(#{RX_URL})\(([^\)]*)\)!:(#{RX_URL})/],
+    [:image_link_bracket,       '[!', /\[!(#{RX_URL})!:(#{RX_URL})\]/],
+    [:image_link,               '!',  /!(#{RX_URL})!:(#{RX_URL})/],
+    [:image_title_bracket,      '[!', /\[!(#{RX_URL})\(([^\)]*)\)!\]/],
+    [:image_title,              '!',  /!(#{RX_URL})\(([^\)]*)\)!/],
+    [:image_bracket,            '[!', /\[!(#{RX_URL})!\]/],
+    [:image,                    '!',  /!(#{RX_URL})!/],
+
+    [:dblbold_bracket,   '[**', /\[\*\*((?:.|\n.|\n(?=\*\*\]))+?)\*\*\]/],
+    [:dblbold,           '**',  /\*\*((?:.|\n.|\n(?=\*\*))+?)\*\*/],
+    [:bold_bracket,      '[*',  /\[\*((?:.|\n.|\n(?=\*\]))+?)\*\]/],
+    [:bold,              '*',   /\*((?:.|\n.|\n(?=\*\]))+?)\*/],
+    [:dblitalic_bracket, '[__', /\[__((?:.|\n.|\n(?=__\]))+?)__\]/],
+    [:dblitalic,         '__',  /__((?:.|\n.|\n(?=__))+?)__/],
+    [:italic_bracket,    '[_',  /\A\[_((?:.|\n.|\n(?=_\]))+?)_\]/],
+    [:italic,            '_',   /_((?:.|\n.|\n(?=_))+?)_/],
+    [:code_bracket,      '[@',  /\[@((?:.|\n.|\n(?=@\]))+?)@\]/],
+    [:code,              '@',   /@((?:.|\n.|\n(?=@))+?)@/],
+    [:ins_bracket,       '[+',  /\A\[\+((?:.|\n.|\n(?=\+\]))+?)\+\]/],
+    [:ins,               '+',   /\+((?:.|\n.|\n(?=\+))+?)\+/],
+    [:sup_bracket,       '[^',  /\A\[\^((?:.|\n.|\n(?=\^\]))+?)\^\]/],
+    [:sup,               '^',   /\^((?:.|\n.|\n(?=\^))+?)\^/],
+    [:del_bracket,       '[-',  /\A\[\-((?:.|\n.|\n(?=\-\]))+?)\-\]/],
+    [:del,               '-',   /\-((?:.|\n.|\n(?=\-))+?)\-/],
+    [:sub_bracket,       '[~',  /\A\[\~((?:.|\n.|\n(?=\~\]))+?)\~\]/],
+    [:sub,               '~',   /\~((?:.|\n.|\n(?=\~))+?)\~/],
+    [:cite_bracket,      '[??', /\A\[\?\?((?:.|\n.|\n(?=\?\?\]))+?)\?\?\]/],
+    [:cite,              '??',  /\?\?((?:.|\n.|\n(?=\?\?))+?)\?\?/],
+  ]
+
+  SYM_TO_INDEX = Hash[SYMS.map { |name, index, re| [name, index] }]
+  SYM_TO_REGEX = Hash[SYMS.map { |name, index, re| [name, re]    }]
 end
