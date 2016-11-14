@@ -1,6 +1,6 @@
 Recursive-descent Textile parser in Ruby
 
-operand = operand1+ ;
+operand = operand1+ ?;
 
 operand1 =
   <text>
@@ -27,15 +27,15 @@ operand1 =
   ;
 
 link =
-    '["', operand, '(', <text>, ')":', url, ']'
-  | '"', operand, '(', <text>, ')":', url
+    '["', operand, '(', <text>, ')":', <url>, ']'
+  | '"', operand, '(', <text>, ')":', <url>
   | '["', operand, '":', <url>, ']'
   | '"', operand, '":', <url>;
 
 image = 
-    '[!', url, '(', <text>, ')!:', url, ']'
-  | '!', url, '(', <text>, ')!:', url
-  | '[!', url, '(', <text>, ')!]'
-  | '!', url, '(', <text>, ')!'
-  | '[!', url, '!]'
-  | '!', url, '!';
+    '[!', <url>, '(', <text>, ')!:', <url>, ']'
+  | '!', <url>, '(', <text>, ')!:', <url>
+  | '[!', <url>, '(', <text>, ')!]'
+  | '!', <url>, '(', <text>, ')!'
+  | '[!', <url>, '!]'
+  | '!', <url>, '!';
