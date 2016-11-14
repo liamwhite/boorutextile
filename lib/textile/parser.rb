@@ -15,13 +15,12 @@ module TextileParser
     syms = SYM_TO_INDEX.map    { |sym, index| [sym, text.index(index)] }
                        .reject { |sym, index| index.nil? }
 
-    # Find closest to start of string
-    min = syms.map{ |x| x[1] }.min
+    # Sort by starting position - closer is better
+    syms = syms.sort_by{ |x| x[1] }
 
     # Get associated regexps and find first
     matchdata = nil
-    match = syms.select { |sym, index| index == min }
-                .map    { |sym, index| [sym, SYM_TO_REGEX[sym]] }
+    match = syms.map    { |sym, index| [sym, SYM_TO_REGEX[sym]] }
                 .detect { |sym, re| matchdata = re.match(text) }
 
     # [sym, matchdata]
@@ -101,19 +100,32 @@ module TextileParser
 
   # Find the longest substring that contains balanced markup,
   # or the whole string if this is impossible.
-  # N.B.: always assumes right is a string.
   def balance_markup(text, matched, left, right)
-    left_count = matched.scan(left).size
-    right_index = -1
+    both = Regexp.union(left, right)
+    left = Regexp.union(left)
+    right = Regexp.union(right)
 
-    left_count.times do
-      if current = matched.index(right, right_index + 1)
-        right_index += current + right.size
+    s = StringScanner.new(matched)
+    n, lowest_pos = 0, 0
+    i = loop do
+      match = s.scan(both)
+      case
+      when match =~ left
+        n += 1
+      when match =~ right
+        n -= 1
+        lowest_pos = s.pos
+      else
+        m = s.scan_until(both)
+        s.pos = s.pos - s.matched.size if m
+        s.terminate if m.nil?
       end
+
+      break lowest_pos.pred if n.zero? || s.eos?
     end
 
-    text.slice!(0 .. right_index)
-    matched[0 .. right_index]
+    text.slice!(0 .. i)
+    matched[0 .. i]
   end
 
   # Properly nesting operator pairs:
@@ -166,19 +178,19 @@ module TextileParser
     [:bold,              '*',   /\*((?:.|\n.|\n(?=\*\]))+?)\*/],
     [:dblitalic_bracket, '[__', /\[__((?:.|\n.|\n(?=__\]))+?)__\]/],
     [:dblitalic,         '__',  /__((?:.|\n.|\n(?=__))+?)__/],
-    [:italic_bracket,    '[_',  /\A\[_((?:.|\n.|\n(?=_\]))+?)_\]/],
+    [:italic_bracket,    '[_',  /\[_((?:.|\n.|\n(?=_\]))+?)_\]/],
     [:italic,            '_',   /_((?:.|\n.|\n(?=_))+?)_/],
     [:code_bracket,      '[@',  /\[@((?:.|\n.|\n(?=@\]))+?)@\]/],
     [:code,              '@',   /@((?:.|\n.|\n(?=@))+?)@/],
-    [:ins_bracket,       '[+',  /\A\[\+((?:.|\n.|\n(?=\+\]))+?)\+\]/],
+    [:ins_bracket,       '[+',  /\[\+((?:.|\n.|\n(?=\+\]))+?)\+\]/],
     [:ins,               '+',   /\+((?:.|\n.|\n(?=\+))+?)\+/],
-    [:sup_bracket,       '[^',  /\A\[\^((?:.|\n.|\n(?=\^\]))+?)\^\]/],
+    [:sup_bracket,       '[^',  /\[\^((?:.|\n.|\n(?=\^\]))+?)\^\]/],
     [:sup,               '^',   /\^((?:.|\n.|\n(?=\^))+?)\^/],
-    [:del_bracket,       '[-',  /\A\[\-((?:.|\n.|\n(?=\-\]))+?)\-\]/],
+    [:del_bracket,       '[-',  /\[\-((?:.|\n.|\n(?=\-\]))+?)\-\]/],
     [:del,               '-',   /\-((?:.|\n.|\n(?=\-))+?)\-/],
-    [:sub_bracket,       '[~',  /\A\[\~((?:.|\n.|\n(?=\~\]))+?)\~\]/],
+    [:sub_bracket,       '[~',  /\[\~((?:.|\n.|\n(?=\~\]))+?)\~\]/],
     [:sub,               '~',   /\~((?:.|\n.|\n(?=\~))+?)\~/],
-    [:cite_bracket,      '[??', /\A\[\?\?((?:.|\n.|\n(?=\?\?\]))+?)\?\?\]/],
+    [:cite_bracket,      '[??', /\[\?\?((?:.|\n.|\n(?=\?\?\]))+?)\?\?\]/],
     [:cite,              '??',  /\?\?((?:.|\n.|\n(?=\?\?))+?)\?\?/],
   ]
 

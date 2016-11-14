@@ -59,7 +59,7 @@ class HTMLNode
   end
 end
 
-class ImageNode < HTMLNode
+class ImageNode
   def initialize(src)
     @src = src
   end
