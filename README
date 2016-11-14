@@ -1,48 +1,41 @@
 Recursive-descent Textile parser in Ruby
 
-link-rule:
-  | image-rule ':' url
-  | quote-rule ':' url
-  : image-rule
+operand = operand1+ ;
+
+operand1 =
+  <text>
+
+  | '[==', operand, '==]'
+  | '[bq=", <author>, '"]', operand, '[/bq]'
+  | '[bq]', operand, '[/bq]'
+  | '[spoiler]', operand, '[/spoiler]'
+  | '==', operand, '=='
+
+  | link
+  | image
+
+  | '[**', operand, '**]' | '**', operand, '**'
+  | '[*', operand, '*]' | '*', operand, '*'
+  | '[__', operand, '__]' | '__', operand, '__'
+  | '[_', operand, '_]' | '_', operand, '_'
+  | '[@', operand, '@]' | '@', operand, '@'
+  | '[+', operand, '+]' | '+', operand, '+'
+  | '[^', operand, '^]' | '^', operand, '^'
+  | '[-', operand, '-]' | '-', operand, '-'
+  | '[~', operand, '~]' | '~', operand, '~'
+  | '[??', operand, '??]' | '??', operand, '??'
   ;
 
-image-rule:
-  | '!' quote-rule '!'
-  : quote-rule
-  ;
+link =
+    '["', operand, '(', <text>, ')":', url, ']'
+  | '"', operand, '(', <text>, ')":', url
+  | '["', operand, '":', <url>, ']'
+  | '"', operand, '":', <url>;
 
-quote-rule:
-  | '"' terminal '"'
-  : terminal
-  ;
-
-terminal:
-  | word | space
-  | '*' link-rule '*'
-  | '^' link-rule '^'
-  | '+' link-rule '+'
-  | '-' link-rule '-'
-  | '_' link-rule '_'
-  | '@' link-rule '@'
-  | '~' link-rule '~'
-  | pre-rule | spoiler-rule | bq-rule | raw-rule
-  : *
-  ;
-
-spoiler-rule:
-  | '[spoiler]' link-rule '[/spoiler]'
-  ;
-
-pre-rule:
-  | '[pre]' link-rule '[/pre]'
-  ;
-
-bq-rule:
-  | '[bq]' link-rule '[/bq]'
-  | '[bq="*"]' link-rule '[/bq]'
-  ;
-
-raw-rule:
-  | '[==' terminal '==]'
-  | '==' terminal '=='
-  ;
+image = 
+    '[!', url, '(', <text>, ')!:', url, ']'
+  | '!', url, '(', <text>, ')!:', url
+  | '[!', url, '(', <text>, ')!]'
+  | '!', url, '(', <text>, ')!'
+  | '[!', url, '!]'
+  | '!', url, '!';
